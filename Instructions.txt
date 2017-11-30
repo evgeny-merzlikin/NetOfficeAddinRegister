@@ -1,0 +1,98 @@
+regasm /codebase /regfile
+
+1. replace first string 
+Windows Registry Editor Version 5.00
+
+1. replace HKEY_CLASSES_ROOT\CLSID\:
+	- HKEY_CURRENT_USER\Software\Classes\CLSID\
+	- HKEY_CURRENT_USER\Software\Classes\Wow6432Node\CLSID\
+
+2. replace HKEY_CLASSES_ROOT\
+	- HKEY_CURRENT_USER\Software\Classes\
+
+3. add registry keys
+[HKEY_CURRENT_USER\Software\Microsoft\Office\Word\Addins\__ADDIN_ID__]
+"Description"="__ADDIN_ID__"
+"FriendlyName"="__ADDIN_ID__"
+"LoadBehavior"=dword:00000003
+
+__ADDIN_ID__ = from \Software\Classes
+
+4. add registry keys
+[HKEY_CURRENT_USER\Software\Wow6432Node\Microsoft\Office\Word\Addins\__ADDIN_ID__]
+"Description"="__ADDIN_ID__"
+"FriendlyName"="__ADDIN_ID__"
+"LoadBehavior"=dword:00000003
+
+
+5. Change "Codebase"="file:///(.*)" to "Codebase"="c:\\windows\\..."
+
+
+
+... Extract type library (tlb) from addin and register it
+
+  - register: regtlibv12.exe
+
+{4C436160-DC5D-49FD-85C5-03FA273B4251}
+
+Actually, COM can be registered per-user or per-machine as HKEY_CLASSES_ROOT is a view derived from both HKEY_CURRENT_USER\Software\Classes and HKEY_LOCAL_MACHINE\Software\Classes. If you run regasm /regfile:foo.dll you can generate a regfile and then change all the references in the key names to make it local to the current user.
+
+In the .reg file that gets generated, all the reg key additions will be to HKEY_CLASSES_ROOT. You need to replace these with "HKEY_CURRENT_USER\Software\Classes".
+
+Also if you need the COM registration to work with 32 bit applications and you're running x64, then for additions to HKEY_CLASSES_ROOT\CLSID, you'll need to insert "\Wow6432Node" before the CLSID token like.
+
+To be clear, additions to "HKEY_CLASSES_ROOT\CLSID" become "HKEY_CURRENT_USER\Software\Classes\Wow6432Node\CLSID". To make it work on x86 you only need to make this change for CLSID entries.
+
+Also, in certain situations, you can consider making use of Registration Free COM Interop by creating a manifest file for the EXE that consumes the COM server to make the ProgID/ClassID's available to the EXE without actually writing the registration information to the registry.
+
+https://evolveplatform.zendesk.com/hc/en-us/articles/115000552010-How-to-change-the-load-behavior-of-the-Office-Add-ins
+	
+Registry Entries
+32-bit
+HKEY_CURRENT_USER\Software\Microsoft\Office\application name\Addins\add-in ID
+64-bit
+HKEY_CURRENT_USER\Software\Wow6432Node\Microsoft\Office\application name\Addins\add-in ID
+
+
+
+
+'13 at 11:19
+
+2. Adding the registry keys under HKEY_CURRENT_USER\Software\Microsoft\Office\Excel\Addins to allow Excel to find the addin.
+
+Regsvr32 invokes some functions in an unmanaged DLL: these functions could create all registry entries including HKEY_CURRENT_USER\Software\Microsoft\Office\Excel\Addins\{your add-in}. 
+
+Please find more info at http://support.microsoft.com/kb/207132. You may also want to look into the source code of COM Shim Wizard, see http://blogs.msdn.com/b/mshneer/archive/2010/03/19/com-shim-wizards-for-vs-2010.aspx.
+
+
+https://msdn.microsoft.com/en-us/library/bb508939.aspx
+
+
+
+https://www.codeproject.com/KB/COM/regsvr42.aspx?msg=2685387
+
+https://msdn.microsoft.com/en-us/library/ff937654.aspx
+
+
+
+C# utility to generate reg file:
+1. launch "regasm file.dll /codebase /regfile:install.reg"
+
+regasm location:
+
+using Microsoft.Build.Utilities;
+ToolLocationHelper.GetPathToDotNetFramework(
+        TargetDotNetFrameworkVersion.VersionLatest);
+
+2. open install.reg for writing
+
+
+3. read content, split chunks per '\r\n\r\n'
+
+4. process each chunk
+
+5. add new keys to Addons
+
+5. write result to install.reg
+
+6. optionally, merge reg file to system registry
